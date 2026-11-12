@@ -1,0 +1,868 @@
+{
+  "name": "Report Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=promp: Utilize o Modelo - Relatório para gerar texto de acordo com os campos de texto necessarios. Utilize os dados fornecidos para realizar a analise necessaria para preencher o documento. Para o texto das seções, utilize apenas plain text e escreva em português, podendo utilizar bullet points e quebras de linha (esse texto corresponde ao campo content).\n\ndata: {{ $('Aggregate').item.json.production_data.map(item => item).toJsonString() }}\n\nexpected results: {{ $('GetExpectedResults').item.json.content }}\n\nmodel: {{ $('GetReportModel').item.json.content }}\n\ndocument that will be modified: {{ $('GetModifiableModel').item.json.content }}\n\nINSTRUÇÕES: Analise todas as informações fornecidas antes de gerar a resposta.\nUtilize os dados de referência e os resultados esperados para produzir instruções precisas e relevantes.\nUtilize o modelo de conteúdo como referência para compreender o que deve ser escrito em cada seção.\nIdentifique as seções que precisam de conteúdo utilizando os identificadores presentes no documento que será modificado.\nEscreva somente o conteúdo correspondente às seções solicitadas.\nNão altere os nomes, títulos ou identificadores das seções.\nNão crie novas seções.\nNão inclua explicações, comentários.\nNão invente informações que não estejam sustentadas pelos dados fornecidos.\nPode utilizar quebras de linha\n\nSaida:\nUtilize o output parser para o modelo base da saida.\nCada ID deve aparecer extamente uma vez:\n- pvr\n- downtime\n- defeitos\n- entregas\n\nNão duplique IDs.\nNão omita IDs.\nA ordem deve sempre ser:\n1. pvr\n2. downtime\n3. defeitos\n4. entregas.",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [4752, -1536],
+      "id": "f63e0a8b-81be-45a5-b5c9-a70f207bf5b4",
+      "name": "AI Agent",
+      "retryOnFail": false,
+      "notesInFlow": false,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [4640, -1312],
+      "id": "8b3b340a-8f2c-4ac3-8848-9e4a7a056184",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"sections\":[{\n \"section_id\":\"string\",\n \"section_content\":\"string\"\n }]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [5024, -1312],
+      "id": "1abc0109-a281-439a-ae49-367843ccaf88",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [2608, -1584],
+      "id": "40cac2d2-fec5-4932-80b2-26f16d007874",
+      "name": "MonthlyReport"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n \"month\":\"{{ $json.timestamp }}\"\n}\n ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [2832, -1584],
+      "id": "a4cd082d-457b-4546-856f-da917662071a",
+      "name": "GetPrompAndMonth"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "DOCUMENT_ID_PLACEHOLDER",
+          "mode": "list",
+          "cachedResultName": "Pedidos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/DOCUMENT_ID_PLACEHOLDER/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1026847920,
+          "mode": "list",
+          "cachedResultName": "Página3",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/DOCUMENT_ID_PLACEHOLDER/edit#gid=1026847920"
+        },
+        "filtersUI": {
+          "values": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [3056, -1536],
+      "id": "29822029-81e2-448d-b460-3c3e794d6f59",
+      "name": "GetProductionData",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "6d7bea5d-7584-447e-8aa5-ba03264a3f7d",
+              "leftValue": "={{ $('GetProductionData').item.json['Data pedido'].toDateTime(\"dd/MM/yyyy\").format('yyyy-MM')}}",
+              "rightValue": "={{\n $('MonthlyReport').item.json.timestamp\n .toDateTime()\n .minus({ months: 1 })\n .toFormat('yyyy-MM')\n}}",
+              "operator": {
+                "type": "dateTime",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.4,
+      "position": [3504, -1632],
+      "id": "5040693f-30a3-4b3e-b4c7-c70be13cf1ee",
+      "name": "FilterByLastMonth",
+      "notesInFlow": true,
+      "notes": "Modificar esse nodo no fim do desenvolvimento"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "6d7bea5d-7584-447e-8aa5-ba03264a3f7d",
+              "leftValue": "={{ $('GetProductionData').item.json['Data pedido'].toDateTime(\"dd/MM/yyyy\").format('yyyy-MM-dd')}}",
+              "rightValue": "={{ $('DateForm').item.json['Start Date'].toDateTime().format('yyyy-MM-dd')}}",
+              "operator": {
+                "type": "dateTime",
+                "operation": "afterOrEquals"
+              }
+            },
+            {
+              "id": "1564f71b-f265-4c7d-80bc-357745b8cdc2",
+              "leftValue": "={{ $('GetProductionData').item.json['Data pedido'].toDateTime(\"dd/MM/yyyy\").format('yyyy-MM-dd')}}",
+              "rightValue": "={{ $('DateForm').item.json['End Date'].toDateTime().format('yyyy-MM-dd')}}",
+              "operator": {
+                "type": "dateTime",
+                "operation": "beforeOrEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.4,
+      "position": [3504, -1440],
+      "id": "ef9573c7-e404-424f-b44c-15ee22faf233",
+      "name": "FilterByDateInterval"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "2419af78-0695-4889-83c2-c2281a538a97",
+              "leftValue": "={{ $('MonthlyReport').isExecuted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [3280, -1536],
+      "id": "c17ecc75-e9ec-456a-b357-83eae47d6614",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "documentURL": "https://docs.google.com/document/d/DOCUMENT_ID_PLACEHOLDER/edit?usp=drive_link"
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [3952, -1536],
+      "id": "4e92669a-d3a1-466d-bd82-fc41606b408e",
+      "name": "GetReportModel",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "documentURL": "https://docs.google.com/document/d/DOCUMENT_ID_PLACEHOLDER/edit?usp=drive_link"
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [4400, -1536],
+      "id": "7da421dc-c2de-413d-b07b-a65df2b6e268",
+      "name": "GetModifiableModel",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "documentURL": "https://docs.google.com/document/d/DOCUMENT_ID_PLACEHOLDER/edit?usp=drive_link"
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [4176, -1536],
+      "id": "2246cce2-6da8-4980-a4ee-3fe9b9ec80ab",
+      "name": "GetExpectedResults",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "DOCUMENT_ID_PLACEHOLDER",
+          "mode": "list",
+          "cachedResultName": "Modelo - Relatório (n8n)",
+          "cachedResultUrl": "https://docs.google.com/document/d/DOCUMENT_ID_PLACEHOLDER/edit?usp=drivesdk"
+        },
+        "name": "=Report_{{\n $('FilterByDateInterval').isExecuted ? \n $('FilterByDateInterval').first().json['Data pedido'].replaceAll('/','-') :\n $('FilterByLastMonth').first().json['Data pedido'].replaceAll('/','-')\n}}_{{\n $('FilterByDateInterval').isExecuted ? \n $('FilterByDateInterval').last().json['Data pedido'].replaceAll('/','-') :\n $('FilterByLastMonth').last().json['Data pedido'].replaceAll('/','-')\n}}_{{ $now.extract('minute') }}_{{ $now.extract('second')}}",
+        "sameFolder": false,
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "FOLDER_ID_PLACEHOLDER",
+          "mode": "list",
+          "cachedResultName": "service_account_folder",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/FOLDER_ID_PLACEHOLDER"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [5216, -1536],
+      "id": "ee927ec5-9fdd-43f3-8d3d-89a49b4db857",
+      "name": "CopyModifiableModel",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ $('CopyModifiableModel').item.json.id }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "replaceAll",
+              "text": "={{ $('SliptDocumentFields').item.json.sections.id }}",
+              "replaceText": "={{ $('SliptDocumentFields').item.json.sections.content }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [2832, -1072],
+      "id": "bc8a894c-6f6e-4d96-bd70-7f469fd36744",
+      "name": "FillReport",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('GoogleDocsBatchUpdateRequest').item.json.documentId }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "report_pdf",
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf"
+            }
+          },
+          "fileName": "={{\n $('FilterByDateInterval').isExecuted ? \n $('FilterByDateInterval').first().json['Data pedido'].replaceAll('/','-') :\n $('FilterByLastMonth').first().json['Data pedido'].replaceAll('/','-')\n}}_{{\n $('FilterByDateInterval').isExecuted ? \n $('FilterByDateInterval').last().json['Data pedido'].replaceAll('/','-') :\n $('FilterByLastMonth').last().json['Data pedido'].replaceAll('/','-')\n}}_Produciton_Report.pdf"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [6112, -1536],
+      "id": "e3597106-f134-47d9-8d07-5a33f4c49d8f",
+      "name": "GetReportAsPDF",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "john.doe.fake@example.com",
+        "subject": "Monthly production report",
+        "emailType": "text",
+        "message": "=\nHere is a report covering the periods of: {{\n $('FilterByDateInterval').isExecuted ? \n $('FilterByDateInterval').first().json['Data pedido'] :\n $('FilterByLastMonth').first().json['Data pedido']\n}}-{{\n $('FilterByDateInterval').isExecuted ? \n $('FilterByDateInterval').last().json['Data pedido']:\n $('FilterByLastMonth').last().json['Data pedido']\n}}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "report_pdf"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [6336, -1536],
+      "id": "4bbf7394-9916-444e-b581-6eb7e0d5a61b",
+      "name": "SendReportOnGmail",
+      "webhookId": "WEBHOOK_ID_PLACEHOLDER",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $execution.id }}",
+        "contextWindowLength": 4
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [4768, -1312],
+      "id": "4db20487-fde9-446b-bf16-28de8701847f",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "production_data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [3728, -1536],
+      "id": "4a4412ff-55e9-47e0-b675-69b6bf94ae80",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [4896, -1312],
+      "id": "2e3cc834-f1b9-47df-b89b-2a5ada4f8826",
+      "name": "Calculator"
+    },
+    {
+      "parameters": {
+        "jsCode": "// // Loop over input items and add a new field called 'myNewField' to the JSON of each one\n// var recievedSections = $input.first().json.output.sections\n// const expectedIds = [\"pvr\",\"downtime\",\"defeitos\",\"entregas\"]\n// const res = {}\n\n// for (const id of expectedIds){\n// const match = recievedSections.filter(section => section.section_id === id)\n// console.log(match)\n// res[id] = {\n// \"id\":id,\n// \"content\":match[0].section_content\n// }\n// }\n\n// return [{\n// \"sections\": res\n// }];\n\nvar recievedSections = $('AI Agent').first().json.output.sections\nconst res = {\"sections\":new Array()}\nfor (const sec of recievedSections){\n res[\"sections\"].push(\n {\n \"id\":\"{\" + sec.section_id + \"}\",\n \"content\":sec.section_content\n }\n )\n}\n\nres[\"sections\"].push({\n \"id\":\"{startDate}\",\n \"content\":\n $('FilterByDateInterval').isExecuted ? \n $('FilterByDateInterval').first().json['Data pedido'] : $('FilterByLastMonth').first().json['Data pedido']\n})\n\nres[\"sections\"].push({\n \"id\":\"{endDate}\",\n \"content\":\n $('FilterByDateInterval').isExecuted ? \n$('FilterByDateInterval').last().json['Data pedido'] : $('FilterByLastMonth').last().json['Data pedido']\n})\n\n\nreturn res;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5440, -1536],
+      "id": "67ce19b5-cba8-4ce3-95ac-a7d2bb5679b6",
+      "name": "SectionAssingment"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "sections",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [2608, -1072],
+      "id": "5d71c10d-0329-4bc9-9bb6-91a9668a88cb",
+      "name": "SliptDocumentFields"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [3056, -1072],
+      "id": "effa9107-8425-4d78-b172-296a572ff837",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = {\n requests: $('SectionAssingment').first().json.sections.map(item=>({\n replaceAllText:{\n replaceText:item.content,\n containsText:{\n text: item.id,\n matchCase: true\n } \n }\n })),\n writeControl:{\n writeMode: \"EDIT\"\n }\n}\n\nreturn req;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5664, -1536],
+      "id": "d9ecd844-f700-4237-9932-e0dce35aeb44",
+      "name": "GenerateBatchUpdateRequest"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{$('CopyModifiableModel').item.json.id}}:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('GenerateBatchUpdateRequest').item.json}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [5888, -1536],
+      "id": "e5546377-0cf0-4755-b043-a2b0b7b75bce",
+      "name": "GoogleDocsBatchUpdateRequest",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Updates usando o FillReport\nNessa linha de nodos, updates são realizados um a um, através de varias chamadas do nodo FIllReport. Feito dessa forma para que o preenchimento dos campos seja mais genérico.\nO Nodo GoolgleDocsBatchUpdate faz a mesma coisa porém melhor.\n\n",
+        "height": 224,
+        "width": 336
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [3328, -1152],
+      "id": "beee754a-b6ef-4b2a-b57d-dbdf74fa62a8",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "errorMessage": "Invalid date range"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [3056, -1296],
+      "id": "7a975f6f-d91d-423f-b77f-51581b4c98aa",
+      "name": "Stop and Error"
+    },
+    {
+      "parameters": {
+        "authentication": "n8nUserAuth",
+        "formTitle": "Date Selection",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Start Date",
+              "fieldType": "date",
+              "defaultValue": "={{ $now }}",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "End Date",
+              "fieldType": "date",
+              "defaultValue": "={{ $now }}",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [2608, -1344],
+      "id": "913ea628-6a57-403f-9db1-43b073285f3f",
+      "name": "DateForm",
+      "webhookId": "WEBHOOK_ID_PLACEHOLDER"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "f6a4d5b3-92d4-4003-9f2c-9db17d7eb48b",
+              "leftValue": "={{$('DateForm').item.json['Start Date']}}",
+              "rightValue": "={{$('DateForm').item.json['End Date']}}",
+              "operator": {
+                "type": "dateTime",
+                "operation": "beforeOrEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [2832, -1344],
+      "id": "2644d8f6-2329-488f-82be-f4fd2e997f49",
+      "name": "IfDateRange"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "CopyModifiableModel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MonthlyReport": {
+      "main": [
+        [
+          {
+            "node": "GetPrompAndMonth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetPrompAndMonth": {
+      "main": [
+        [
+          {
+            "node": "GetProductionData",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetProductionData": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FilterByLastMonth": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FilterByDateInterval": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "FilterByDateInterval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FilterByLastMonth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetReportModel": {
+      "main": [
+        [
+          {
+            "node": "GetExpectedResults",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetModifiableModel": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetExpectedResults": {
+      "main": [
+        [
+          {
+            "node": "GetModifiableModel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CopyModifiableModel": {
+      "main": [
+        [
+          {
+            "node": "SectionAssingment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FillReport": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetReportAsPDF": {
+      "main": [
+        [
+          {
+            "node": "SendReportOnGmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "GetReportModel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SectionAssingment": {
+      "main": [
+        [
+          {
+            "node": "GenerateBatchUpdateRequest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SliptDocumentFields": {
+      "main": [
+        [
+          {
+            "node": "FillReport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        []
+      ]
+    },
+    "GenerateBatchUpdateRequest": {
+      "main": [
+        [
+          {
+            "node": "GoogleDocsBatchUpdateRequest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GoogleDocsBatchUpdateRequest": {
+      "main": [
+        [
+          {
+            "node": "GetReportAsPDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DateForm": {
+      "main": [
+        [
+          {
+            "node": "IfDateRange",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IfDateRange": {
+      "main": [
+        [
+          {
+            "node": "GetProductionData",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "82e18269-58ae-4dd7-8f8b-1d2550d4c91d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "INSTANCE_ID_PLACEHOLDER"
+  },
+  "nodeGroups": [],
+  "id": "WORKFLOW_ID_PLACEHOLDER",
+  "tags": []
+}
